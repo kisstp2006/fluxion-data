@@ -110,6 +110,9 @@ pub fn value(comptime T: type, cursor: *Cursor, gpa: Allocator) Error!T {
         .pointer => |info| return slice(info.child, cursor, gpa),
 
         .@"struct" => |info| {
+            if (info.layout == .@"packed") {
+                return @bitCast(try value(info.backing_integer.?, cursor, gpa));
+            }
             var out: T = undefined;
             // Which fields have been filled, so that failing part of the way
             // through frees what was allocated and no more.
@@ -179,7 +182,8 @@ pub fn free(gpa: Allocator, comptime T: type, from: T) void {
         },
         .optional => |info| if (from) |present| free(gpa, info.child, present),
         .array => |info| for (from) |item| free(gpa, info.child, item),
-        .@"struct" => |info| inline for (info.fields) |field| {
+        // A packed struct owns nothing: it is a number.
+        .@"struct" => |info| if (info.layout != .@"packed") inline for (info.fields) |field| {
             free(gpa, field.type, @field(from, field.name));
         },
         .@"union" => switch (from) {

@@ -396,3 +396,37 @@ test "an arena is the other way, and needs no deinit at all" {
     const read = try data.decode(arena.allocator(), Player, bytes);
     try testing.expectEqualStrings("Grace", read.value.name);
 }
+
+test "a packed struct goes out as its number and comes back as itself" {
+    const Handle = packed struct(u64) { index: u32, generation: u32 };
+    const Flags = packed struct(u8) { visible: bool, solid: bool, rest: u6 };
+    const Held = struct { who: Handle, how: Flags, many: [2]Handle };
+
+    var read = try roundTrip(Held, .{
+        .who = .{ .index = 7, .generation = 3 },
+        .how = .{ .visible = true, .solid = false, .rest = 0b101010 },
+        .many = .{ .{ .index = 1, .generation = 1 }, .{ .index = 0, .generation = 0 } },
+    });
+    defer read.deinit(testing.allocator);
+
+    try testing.expectEqual(@as(u32, 7), read.value.who.index);
+    try testing.expectEqual(@as(u32, 3), read.value.who.generation);
+    try testing.expect(read.value.how.visible);
+    try testing.expect(!read.value.how.solid);
+    try testing.expectEqual(@as(u6, 0b101010), read.value.how.rest);
+    try testing.expectEqual(@as(u32, 1), read.value.many[0].index);
+    try testing.expectEqual(@as(u32, 0), read.value.many[1].generation);
+}
+
+test "a packed struct costs what its number costs, not what its fields do" {
+    const Small = packed struct(u64) { index: u32, generation: u32 };
+    const One = struct { it: Small };
+
+    // Two small numbers in a packed u64 is one varint of the whole u64, and
+    // that number is large - which is the trade a packed struct makes.
+    const zero = try data.encodeAlloc(testing.allocator, One, .{
+        .it = .{ .index = 0, .generation = 0 },
+    }, .{ .checksum = false });
+    defer testing.allocator.free(zero);
+    try testing.expectEqual(data.header_size + 1, zero.len);
+}

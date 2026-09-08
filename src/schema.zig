@@ -56,6 +56,7 @@ pub fn allocates(comptime T: type) bool {
         .array => |a| allocates(a.child),
         .pointer => true,
         .@"struct" => |s| blk: {
+            if (s.layout == .@"packed") break :blk false;
             for (s.fields) |field| {
                 if (allocates(field.type)) break :blk true;
             }
@@ -88,6 +89,7 @@ pub fn minimumSize(comptime T: type) usize {
         // A varint length of zero.
         .pointer => 1,
         .@"struct" => |s| blk: {
+            if (s.layout == .@"packed") break :blk minimumSize(s.backing_integer.?);
             var total: usize = 0;
             for (s.fields) |field| total += minimumSize(field.type);
             break :blk total;
@@ -144,14 +146,22 @@ pub fn check(comptime T: type) void {
                 }
                 check(p.child);
             },
-            .@"struct" => |s| {
+            .@"struct" => |s| blk: {
                 if (s.layout == .@"packed") {
-                    refuse(T, "a packed struct is a number wearing a hat; write the number");
+                    // A packed struct is a number wearing a hat, and the
+                    // number is what gets written. Zig fixes the bit layout -
+                    // first field in the low bits - so the number is the same
+                    // on every machine, which is all this format asks of a
+                    // type. Refusing them would only mean every caller
+                    // writing the `@bitCast` by hand.
+                    check(s.backing_integer.?);
+                    break :blk;
                 }
                 for (s.fields) |field| {
                     if (field.is_comptime) refuse(T, "a comptime field is not in the value, so it cannot be in the file");
                     check(field.type);
                 }
+                break :blk;
             },
             .@"union" => |u| {
                 if (u.tag_type == null) {
@@ -186,6 +196,14 @@ fn written(comptime T: type) []const u8 {
         .array => |a| "[" ++ digits(a.len) ++ "]" ++ written(a.child),
         .pointer => |p| "[]" ++ written(p.child),
         .@"struct" => |s| blk: {
+            if (s.layout == .@"packed") {
+                var out: []const u8 = "packed(" ++ written(s.backing_integer.?) ++ "){";
+                for (s.fields, 0..) |field, i| {
+                    if (i > 0) out = out ++ ",";
+                    out = out ++ field.name ++ ":" ++ written(field.type);
+                }
+                break :blk out ++ "}";
+            }
             var out: []const u8 = "struct{";
             for (s.fields, 0..) |field, i| {
                 if (i > 0) out = out ++ ",";
@@ -307,4 +325,20 @@ test "a fingerprint is the same number every time it is asked for" {
     // build could not read.
     try testing.expectEqual(fingerprint(Player), fingerprint(Player));
     try testing.expectEqual(hashing.hashBytes(describe(Player)), fingerprint(Player));
+}
+
+test "a packed struct is described by its bits, not confused with them" {
+    const Flags = packed struct(u8) { visible: bool, solid: bool, rest: u6 };
+    const Handle = packed struct(u64) { index: u32, generation: u32 };
+
+    try testing.expectEqualStrings("packed(u8){visible:bool,solid:bool,rest:u6}", describe(Flags));
+    try testing.expectEqualStrings("packed(u64){index:u32,generation:u32}", describe(Handle));
+
+    // The number behind it is not the same type, and does not read as one.
+    try testing.expect(fingerprint(Flags) != fingerprint(u8));
+    try testing.expect(fingerprint(Handle) != fingerprint(u64));
+
+    // It owns nothing, and it costs what its number costs.
+    try testing.expect(!allocates(Flags));
+    try testing.expectEqual(minimumSize(u64), minimumSize(Handle));
 }

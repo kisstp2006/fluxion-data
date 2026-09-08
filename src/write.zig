@@ -66,8 +66,16 @@ pub fn value(w: *Io.Writer, comptime T: type, from: T) Io.Writer.Error!void {
             }
         },
 
-        .@"struct" => |info| inline for (info.fields) |field| {
-            try value(w, field.type, @field(from, field.name));
+        .@"struct" => |info| {
+            // A packed struct is a number wearing a hat, and the number is
+            // what gets written: Zig fixes the bit layout, so it is the same
+            // number on every machine.
+            if (info.layout == .@"packed") {
+                return value(w, info.backing_integer.?, @bitCast(from));
+            }
+            inline for (info.fields) |field| {
+                try value(w, field.type, @field(from, field.name));
+            }
         },
 
         // The arm's position, not its tag value: what the file says is
