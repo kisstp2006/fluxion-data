@@ -377,6 +377,69 @@ test "a read that fails part of the way through frees what it had allocated" {
     try testing.expectError(data.Error.TooManyElements, data.decode(testing.allocator, Pair, file));
 }
 
+/// Many fields with long names: a long description to hash, and many to
+/// read one after another.
+const Wide = struct {
+    a_field_with_a_rather_long_name_00: f32 = 0,
+    a_field_with_a_rather_long_name_01: f32 = 1,
+    a_field_with_a_rather_long_name_02: f32 = 2,
+    a_field_with_a_rather_long_name_03: f32 = 3,
+    a_field_with_a_rather_long_name_04: f32 = 4,
+    a_field_with_a_rather_long_name_05: f32 = 5,
+    a_field_with_a_rather_long_name_06: f32 = 6,
+    a_field_with_a_rather_long_name_07: f32 = 7,
+    a_field_with_a_rather_long_name_08: f32 = 8,
+    a_field_with_a_rather_long_name_09: f32 = 9,
+    a_field_with_a_rather_long_name_10: f32 = 10,
+    a_field_with_a_rather_long_name_11: f32 = 11,
+    a_field_with_a_rather_long_name_12: f32 = 12,
+    a_field_with_a_rather_long_name_13: f32 = 13,
+    a_field_with_a_rather_long_name_14: f32 = 14,
+    a_field_with_a_rather_long_name_15: f32 = 15,
+    a_field_with_a_rather_long_name_16: f32 = 16,
+    a_field_with_a_rather_long_name_17: f32 = 17,
+    a_field_with_a_rather_long_name_18: f32 = 18,
+    a_field_with_a_rather_long_name_19: f32 = 19,
+    a_field_with_a_rather_long_name_20: f32 = 20,
+    a_field_with_a_rather_long_name_21: f32 = 21,
+    a_field_with_a_rather_long_name_22: f32 = 22,
+    a_field_with_a_rather_long_name_23: f32 = 23,
+    a_field_with_a_rather_long_name_24: f32 = 24,
+    a_field_with_a_rather_long_name_25: f32 = 25,
+    a_field_with_a_rather_long_name_26: f32 = 26,
+    a_field_with_a_rather_long_name_27: f32 = 27,
+    a_field_with_a_rather_long_name_28: f32 = 28,
+    a_field_with_a_rather_long_name_29: f32 = 29,
+    a_field_with_a_rather_long_name_30: f32 = 30,
+    a_field_with_a_rather_long_name_31: f32 = 31,
+    a_field_with_a_rather_long_name_32: f32 = 32,
+    a_field_with_a_rather_long_name_33: f32 = 33,
+    a_field_with_a_rather_long_name_34: f32 = 34,
+    a_field_with_a_rather_long_name_35: f32 = 35,
+    a_field_with_a_rather_long_name_36: f32 = 36,
+    a_field_with_a_rather_long_name_37: f32 = 37,
+    a_field_with_a_rather_long_name_38: f32 = 38,
+    a_field_with_a_rather_long_name_39: f32 = 39,
+    a_field_with_a_rather_long_name_40: f32 = 40,
+    a_field_with_a_rather_long_name_41: f32 = 41,
+    a_field_with_a_rather_long_name_42: f32 = 42,
+    a_field_with_a_rather_long_name_43: f32 = 43,
+    a_field_with_a_rather_long_name_44: f32 = 44,
+    a_field_with_a_rather_long_name_45: f32 = 45,
+    a_field_with_a_rather_long_name_46: f32 = 46,
+    a_field_with_a_rather_long_name_47: f32 = 47,
+    last: []const u8 = "",
+};
+
+test "a type of many fields is described, known and read back" {
+    var read = try roundTrip(Wide, .{ .a_field_with_a_rather_long_name_47 = 7, .last = "end" });
+    defer read.deinit(testing.allocator);
+    try testing.expectEqual(@as(f32, 7), read.value.a_field_with_a_rather_long_name_47);
+    try testing.expectEqual(@as(f32, 3), read.value.a_field_with_a_rather_long_name_03);
+    try testing.expectEqualStrings("end", read.value.last);
+    try testing.expect(data.fingerprintOf(Wide) != data.fingerprintOf(Player));
+}
+
 test "an arena is the other way, and needs no deinit at all" {
     var arena: std.heap.ArenaAllocator = .init(testing.allocator);
     defer arena.deinit();

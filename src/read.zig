@@ -114,12 +114,12 @@ pub fn value(comptime T: type, cursor: *Cursor, gpa: Allocator) Error!T {
                 return @bitCast(try value(info.backing_integer.?, cursor, gpa));
             }
             var out: T = undefined;
-            // Which fields have been filled, so that failing part of the way
-            // through frees what was allocated and no more.
-            comptime var built: usize = 0;
-            errdefer inline for (info.fields[0..built]) |field| {
-                free(gpa, field.type, @field(out, field.name));
-            };
+            // How many fields have been filled, so that failing part of the
+            // way through frees what was allocated and no more. Counted as it
+            // runs, not unrolled at each field: a struct of many fields would
+            // be as many squared.
+            var built: usize = 0;
+            errdefer freeFirst(gpa, T, &out, built);
             inline for (info.fields) |field| {
                 @field(out, field.name) = try value(field.type, cursor, gpa);
                 built += 1;
@@ -166,6 +166,15 @@ fn slice(comptime Child: type, cursor: *Cursor, gpa: Allocator) Error![]Child {
         out[built] = try value(Child, cursor, gpa);
     }
     return out;
+}
+
+/// The first `count` fields of a struct, freed: what a read that failed
+/// part of the way through it had filled.
+fn freeFirst(gpa: Allocator, comptime T: type, from: *const T, count: usize) void {
+    if (comptime !schema.allocates(T)) return;
+    inline for (@typeInfo(T).@"struct".fields, 0..) |field, i| {
+        if (i < count) free(gpa, field.type, @field(from, field.name));
+    }
 }
 
 /// Give back everything reading a `T` allocated.

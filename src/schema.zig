@@ -43,7 +43,13 @@ pub fn describe(comptime T: type) []const u8 {
 /// one type's bytes as another's, which is why it is sixty-four and not
 /// thirty-two.
 pub fn fingerprint(comptime T: type) u64 {
-    return comptime hashing.hashBytes(describe(T));
+    return comptime blk: {
+        const text = describe(T);
+        // The hash walks the description a few bytes at a time, and a type
+        // of many fields has a long one.
+        @setEvalBranchQuota(1000 + 64 * text.len);
+        break :blk hashing.hashBytes(text);
+    };
 }
 
 /// Does reading a `T` need an allocator? False when nothing in it is a
