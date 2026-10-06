@@ -52,9 +52,17 @@ pub fn fingerprint(comptime T: type) u64 {
     };
 }
 
+/// How many backward branches walking a type may take. Every field is a
+/// turn of a loop, and a struct of structs - a light with its colours - is
+/// many; the compiler's own thousand counts every walk in the evaluation that
+/// asked, so a caller several types deep would run out wherever it was
+/// asked first. A walk raises it for the evaluation it is in.
+const walk_quota = 100_000;
+
 /// Does reading a `T` need an allocator? False when nothing in it is a
 /// slice, which is most configuration and every packet of fixed shape.
 pub fn allocates(comptime T: type) bool {
+    @setEvalBranchQuota(walk_quota);
     comptime check(T);
     return comptime switch (@typeInfo(T)) {
         .bool, .int, .float, .@"enum" => false,
@@ -82,6 +90,7 @@ pub fn allocates(comptime T: type) bool {
 /// than the bytes left provably wrong. Zero only for a type with nothing in
 /// it at all.
 pub fn minimumSize(comptime T: type) usize {
+    @setEvalBranchQuota(walk_quota);
     comptime check(T);
     return comptime switch (@typeInfo(T)) {
         .bool => 1,
@@ -117,6 +126,7 @@ pub fn minimumSize(comptime T: type) usize {
 /// Refuse, at compile time, everything the format cannot carry.
 pub fn check(comptime T: type) void {
     comptime {
+        @setEvalBranchQuota(walk_quota);
         switch (@typeInfo(T)) {
             .bool => {},
             .float => |f| {

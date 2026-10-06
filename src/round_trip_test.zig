@@ -493,3 +493,56 @@ test "a packed struct costs what its number costs, not what its fields do" {
     defer testing.allocator.free(zero);
     try testing.expectEqual(data.header_size + 1, zero.len);
 }
+
+/// Many fields that are structs of their own: a light with its colours.
+const Tint = struct { r: f32 = 1, g: f32 = 1, b: f32 = 1, a: f32 = 1 };
+const Deep = struct {
+    colour_00: Tint = .{},
+    colour_01: Tint = .{},
+    colour_02: Tint = .{},
+    colour_03: Tint = .{},
+    colour_04: Tint = .{},
+    colour_05: Tint = .{},
+    colour_06: Tint = .{},
+    colour_07: Tint = .{},
+    colour_08: Tint = .{},
+    colour_09: Tint = .{},
+    colour_10: Tint = .{},
+    colour_11: Tint = .{},
+    colour_12: Tint = .{},
+    colour_13: Tint = .{},
+    colour_14: Tint = .{},
+    colour_15: Tint = .{},
+    colour_16: Tint = .{},
+    colour_17: Tint = .{},
+    colour_18: Tint = .{},
+    colour_19: Tint = .{},
+    colour_20: Tint = .{},
+    colour_21: Tint = .{},
+    colour_22: Tint = .{},
+    colour_23: Tint = .{},
+    colour_24: Tint = .{},
+    colour_25: Tint = .{},
+    colour_26: Tint = .{},
+    colour_27: Tint = .{},
+    colour_28: Tint = .{},
+    colour_29: Tint = .{},
+    colour_30: Tint = .{},
+    colour_31: Tint = .{},
+    colour_32: Tint = .{},
+    colour_33: Tint = .{},
+    colour_34: Tint = .{},
+    colour_35: Tint = .{},
+    colour_36: Tint = .{},
+    colour_37: Tint = .{},
+    colour_38: Tint = .{},
+    colour_39: Tint = .{},
+};
+
+test "a type of many fields that are structs is walked without running out of branches" {
+    // In one evaluation, at the compiler's own quota, as a caller that does
+    // not raise it asks.
+    const answers = comptime .{ data.schema.allocates(Deep), data.schema.minimumSize(Deep) };
+    try testing.expect(!answers[0]);
+    try testing.expectEqual(@as(usize, 40 * 4 * 4), answers[1]);
+}
